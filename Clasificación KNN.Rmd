@@ -1,0 +1,790 @@
+---
+title: "Clasificación con K - Nearest Neighbor"
+output:
+  html_document:
+    df_print: paged
+---
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+options(scipen = 999)
+```
+
+```{r, include = FALSE}
+paquetes <- c('tm', #para función corpus
+              'plyr', #para función rbind.fill
+              'class', #para función knn
+              'ggplot2', #para mejorar los gráficos
+              'SnowballC', #para hacer limpieza de los corpus
+              'Rcpp', #optimización de cálculos
+              'caret') #para función train
+
+instalados <- paquetes %in% installed.packages()
+
+if(sum(instalados == FALSE) > 0) {
+  install.packages(paquetes[!instalados])
+}
+lapply(paquetes,require,character.only = TRUE)
+```
+
+```{r, include = FALSE}
+library("tm")
+library("plyr")
+library("class")
+library("ggplot2")
+library("SnowballC")
+library("wordcloud")
+library("Rcpp")
+library("caret")
+```
+
+```{r, include = FALSE}
+setwd("C:/Users/Andres/OneDrive/Documents/Andrés/DA/R/Proyectos/KNN")
+```
+
+```{r}
+options(stringsAsFactors = FALSE) #para que las columnas no las lea como factor, si no que las mantenga como string
+```
+
+```{r, include = FALSE}
+articulos <- read.table('data_reuter.txt', header = FALSE, sep = '\t')
+```
+
+Comenzamos describiendo los datos que tenemos en el archivo txt
+
+```{r}
+nrow(articulos)
+#Hay 5.485 filas de articulos
+```
+
+```{r}
+table(articulos$V1) #Para ver la cantidad de temáticas y cuántos artículos corresponden a cada una
+```
+
+Creo el corpus, limpio y acondiciono el texto de cada temática
+
+- acquire (1)
+
+```{r}
+##Construir corpus
+###Seleccionamos la temática
+art_acq <- articulos[(articulos$V1 == "acq"),]
+###Construimos corpus
+source1 <- VectorSource(art_acq$V2)
+corpus1 <- Corpus(source1)
+##Acondicionar el corups
+
+###Convertir texto en minúscula
+corpus1 <- tm_map(corpus1, content_transformer(tolower))
+###Eliminar números
+corpus1 <- tm_map(corpus1, removeNumbers)
+###Eliminar signos de puntuación
+corpus1 <- tm_map(corpus1, removePunctuation)
+###Eliminar espacios en blanco innecesarios
+corpus1 <- tm_map(corpus1, stripWhitespace)
+###Eliminar palabras sin significado propio
+vec_stopwords <- c(stopwords("english"), c("dont","didnt","arent","cant","one","also","said"))
+corpus1 <- tm_map(corpus1, removeWords, vec_stopwords)
+###Sustituir paréntesis derivados por las palabras raíz
+corpus1 <- tm_map(corpus1, stemDocument, language = "english")
+```
+
+```{r}
+##Generar Matriz de Término
+mat_acq <- TermDocumentMatrix(corpus1)
+###COntrolamos la dispersión de la matriz
+mat_acq <- removeSparseTerms(mat_acq, 0.8) #aquellas palabras que aparezcan menos de 20% son eliminadas
+mat_acq <- list(name = "acq", mat = mat_acq)
+
+###
+```
+
+- crude (2)
+
+```{r}
+##Construir corpus
+###Seleccionamos la temática
+art_crude <- articulos[(articulos$V1 == "crude"),]
+###Construimos corpus
+source2 <- VectorSource(art_crude$V2)
+corpus2 <- Corpus(source2)
+##Acondicionar el corups
+
+###Convertir texto en minúscula
+corpus2 <- tm_map(corpus2, content_transformer(tolower))
+###Eliminar números
+corpus2 <- tm_map(corpus2, removeNumbers)
+###Eliminar signos de puntuación
+corpus2 <- tm_map(corpus2, removePunctuation)
+###Eliminar espacios en blanco innecesarios
+corpus2 <- tm_map(corpus2, stripWhitespace)
+###Eliminar palabras sin significado propio
+vec_stopwords <- c(stopwords("english"), c("dont","didnt","arent","cant","one","also","said"))
+corpus2 <- tm_map(corpus2, removeWords, vec_stopwords)
+###Sustituir paréntesis derivados por las palabras raíz
+corpus2 <- tm_map(corpus2, stemDocument, language = "english")
+```
+
+```{r}
+##Generar Matriz de Término
+mat_crude <- TermDocumentMatrix(corpus2)
+###COntrolamos la dispersión de la matriz
+mat_crude <- removeSparseTerms(mat_crude, 0.8) #aquellas palabras que aparezcan menos de 20% son eliminadas
+mat_crude <- list(name = "crude", mat = mat_crude)
+###
+```
+
+- earn (3)
+
+```{r}
+##Construir corpus
+###Seleccionamos la temática
+art_earn <- articulos[(articulos$V1 == "earn"),]
+###Construimos corpus
+source3 <- VectorSource(art_earn$V2)
+corpus3 <- Corpus(source3)
+##Acondicionar el corups
+
+###Convertir texto en minúscula
+corpus3 <- tm_map(corpus3, content_transformer(tolower))
+###Eliminar números
+corpus3 <- tm_map(corpus3, removeNumbers)
+###Eliminar signos de puntuación
+corpus3 <- tm_map(corpus3, removePunctuation)
+###Eliminar espacios en blanco innecesarios
+corpus3 <- tm_map(corpus3, stripWhitespace)
+###Eliminar palabras sin significado propio
+vec_stopwords <- c(stopwords("english"), c("dont","didnt","arent","cant","one","also","said"))
+corpus3 <- tm_map(corpus3, removeWords, vec_stopwords)
+###Sustituir paréntesis derivados por las palabras raíz
+corpus3 <- tm_map(corpus3, stemDocument, language = "english")
+```
+
+```{r}
+##Generar Matriz de Término
+mat_earn <- TermDocumentMatrix(corpus3)
+###COntrolamos la dispersión de la matriz
+mat_earn <- removeSparseTerms(mat_earn, 0.8) #aquellas palabras que aparezcan menos de 20% son eliminadas
+mat_earn <- list(name = "earn", mat = mat_earn)
+###
+```
+
+- grain (4)
+
+```{r}
+##Construir corpus
+###Seleccionamos la temática
+art_grain <- articulos[(articulos$V1 == "grain"),]
+###Construimos corpus
+source4 <- VectorSource(art_grain$V2)
+corpus4 <- Corpus(source4)
+##Acondicionar el corups
+
+###Convertir texto en minúscula
+corpus4 <- tm_map(corpus4, content_transformer(tolower))
+###Eliminar números
+corpus4 <- tm_map(corpus4, removeNumbers)
+###Eliminar signos de puntuación
+corpus4 <- tm_map(corpus4, removePunctuation)
+###Eliminar espacios en blanco innecesarios
+corpus4 <- tm_map(corpus4, stripWhitespace)
+###Eliminar palabras sin significado propio
+vec_stopwords <- c(stopwords("english"), c("dont","didnt","arent","cant","one","also","said"))
+corpus4 <- tm_map(corpus4, removeWords, vec_stopwords)
+###Sustituir paréntesis derivados por las palabras raíz
+corpus4 <- tm_map(corpus4, stemDocument, language = "english")
+```
+
+```{r}
+##Generar Matriz de Término
+mat_grain <- TermDocumentMatrix(corpus4)
+###COntrolamos la dispersión de la matriz
+mat_grain <- removeSparseTerms(mat_grain, 0.8) #aquellas palabras que aparezcan menos de 20% son eliminadas
+mat_grain <- list(name = "grain", mat = mat_grain)
+###
+```
+
+- interest (5)
+
+```{r}
+##Construir corpus
+###Seleccionamos la temática
+art_interest <- articulos[(articulos$V1 == "interest"),]
+###Construimos corpus
+source5 <- VectorSource(art_interest$V2)
+corpus5 <- Corpus(source5)
+##Acondicionar el corups
+
+###Convertir texto en minúscula
+corpus5 <- tm_map(corpus5, content_transformer(tolower))
+###Eliminar números
+corpus5 <- tm_map(corpus5, removeNumbers)
+###Eliminar signos de puntuación
+corpus5 <- tm_map(corpus5, removePunctuation)
+###Eliminar espacios en blanco innecesarios
+corpus5 <- tm_map(corpus5, stripWhitespace)
+###Eliminar palabras sin significado propio
+vec_stopwords <- c(stopwords("english"), c("dont","didnt","arent","cant","one","also","said"))
+corpus5 <- tm_map(corpus5, removeWords, vec_stopwords)
+###Sustituir paréntesis derivados por las palabras raíz
+corpus5 <- tm_map(corpus5, stemDocument, language = "english")
+```
+
+```{r}
+##Generar Matriz de Término
+mat_interest <- TermDocumentMatrix(corpus5)
+###COntrolamos la dispersión de la matriz
+mat_interest <- removeSparseTerms(mat_interest, 0.8) #aquellas palabras que aparezcan menos de 20% son eliminadas
+mat_interest <- list(name = "interest", mat = mat_interest)
+###
+```
+
+- money - fx (6)
+
+```{r}
+##Construir corpus
+###Seleccionamos la temática
+art_moneyfx <- articulos[(articulos$V1 == "money-fx"),]
+###Construimos corpus
+source6 <- VectorSource(art_moneyfx$V2)
+corpus6 <- Corpus(source6)
+##Acondicionar el corups
+
+###Convertir texto en minúscula
+corpus6 <- tm_map(corpus6, content_transformer(tolower))
+###Eliminar números
+corpus6 <- tm_map(corpus6, removeNumbers)
+###Eliminar signos de puntuación
+corpus6 <- tm_map(corpus6, removePunctuation)
+###Eliminar espacios en blanco innecesarios
+corpus6 <- tm_map(corpus6, stripWhitespace)
+###Eliminar palabras sin significado propio
+vec_stopwords <- c(stopwords("english"), c("dont","didnt","arent","cant","one","also","said"))
+corpus6 <- tm_map(corpus6, removeWords, vec_stopwords)
+###Sustituir paréntesis derivados por las palabras raíz
+corpus6 <- tm_map(corpus6, stemDocument, language = "english")
+```
+
+```{r}
+##Generar Matriz de Término
+mat_moneyfx <- TermDocumentMatrix(corpus6)
+###COntrolamos la dispersión de la matriz
+mat_moneyfx <- removeSparseTerms(mat_moneyfx, 0.8) #aquellas palabras que aparezcan menos de 20% son eliminadas
+mat_moneyfx <- list(name = "money-fx", mat = mat_moneyfx)
+###
+```
+
+- ship (7)
+
+```{r}
+##Construir corpus
+###Seleccionamos la temática
+art_ship <- articulos[(articulos$V1 == "ship"),]
+###Construimos corpus
+source7 <- VectorSource(art_ship$V2)
+corpus7 <- Corpus(source7)
+##Acondicionar el corups
+
+###Convertir texto en minúscula
+corpus7 <- tm_map(corpus7, content_transformer(tolower))
+###Eliminar números
+corpus7 <- tm_map(corpus7, removeNumbers)
+###Eliminar signos de puntuación
+corpus7 <- tm_map(corpus7, removePunctuation)
+###Eliminar espacios en blanco innecesarios
+corpus7 <- tm_map(corpus7, stripWhitespace)
+###Eliminar palabras sin significado propio
+vec_stopwords <- c(stopwords("english"), c("dont","didnt","arent","cant","one","also","said"))
+corpus7 <- tm_map(corpus7, removeWords, vec_stopwords)
+###Sustituir paréntesis derivados por las palabras raíz
+corpus7 <- tm_map(corpus7, stemDocument, language = "english")
+```
+
+```{r}
+##Generar Matriz de Término
+mat_ship <- TermDocumentMatrix(corpus7)
+###COntrolamos la dispersión de la matriz
+mat_ship <- removeSparseTerms(mat_ship, 0.8) #aquellas palabras que aparezcan menos de 20% son eliminadas
+mat_ship <- list(name = "ship", mat = mat_ship)
+###
+```
+
+- trade (8)
+
+```{r}
+##Construir corpus
+###Seleccionamos la temática
+art_trade <- articulos[(articulos$V1 == "trade"),]
+###Construimos corpus
+source8 <- VectorSource(art_trade$V2)
+corpus8 <- Corpus(source8)
+##Acondicionar el corups
+
+###Convertir texto en minúscula
+corpus8 <- tm_map(corpus8, content_transformer(tolower))
+###Eliminar números
+corpus8 <- tm_map(corpus8, removeNumbers)
+###Eliminar signos de puntuación
+corpus8 <- tm_map(corpus8, removePunctuation)
+###Eliminar espacios en blanco innecesarios
+corpus8 <- tm_map(corpus8, stripWhitespace)
+###Eliminar palabras sin significado propio
+vec_stopwords <- c(stopwords("english"), c("dont","didnt","arent","cant","one","also","said"))
+corpus8 <- tm_map(corpus8, removeWords, vec_stopwords)
+###Sustituir paréntesis derivados por las palabras raíz
+corpus8 <- tm_map(corpus8, stemDocument, language = "english")
+```
+
+```{r}
+##Generar Matriz de Término
+mat_trade <- TermDocumentMatrix(corpus8)
+###COntrolamos la dispersión de la matriz
+mat_trade <- removeSparseTerms(mat_trade, 0.8) #aquellas palabras que aparezcan menos de 20% son eliminadas
+mat_trade <- list(name = "trade", mat = mat_trade)
+###
+```
+
+Juntamos las 8 matrices de término en una lista
+
+```{r}
+mat <- list(mat_acq, mat_crude, mat_earn, mat_grain, mat_interest, mat_moneyfx, mat_ship, mat_trade)
+str(mat)
+```
+
+A continuación, realizaré algunas inspecciones de las matrices.
+
+```{r}
+#Vista rápida de la composición de cada matriz
+###Frecuencia de los 10 primeros términos en los 10 primeros documentos
+####acquire
+inspect(mat[[1]]$mat[1:10,1:10])
+nDocs(mat[[1]]$mat)
+nTerms(mat[[1]]$mat)
+####crude
+inspect(mat[[2]]$mat[1:10,1:10])
+nDocs(mat[[2]]$mat)
+nTerms(mat[[2]]$mat)
+####earn
+inspect(mat[[3]]$mat[1:10,1:10])
+nDocs(mat[[3]]$mat)
+nTerms(mat[[3]]$mat)
+####grain
+inspect(mat[[4]]$mat[1:10,1:10])
+nDocs(mat[[4]]$mat)
+nTerms(mat[[4]]$mat)
+####interest
+inspect(mat[[5]]$mat[1:10,1:10])
+nDocs(mat[[5]]$mat)
+nTerms(mat[[5]]$mat)
+####money-fx
+inspect(mat[[6]]$mat[1:10,1:10])
+nDocs(mat[[6]]$mat)
+nTerms(mat[[6]]$mat)
+####ship
+inspect(mat[[7]]$mat[1:10,1:10])
+nDocs(mat[[7]]$mat)
+nTerms(mat[[7]]$mat)
+####trade
+inspect(mat[[8]]$mat[1:10,1:10])
+nDocs(mat[[8]]$mat)
+nTerms(mat[[8]]$mat)
+```
+
+Ahora crearé el data frame apto para luego aplicar KNN, pero antes hago df con todas las temáticas, para luego concatenarlas
+
+- acquire
+
+```{r}
+#Primero creo la matriz con los terminos
+mmat_acq <- as.matrix(mat[[1]]$mat)
+```
+
+```{r}
+#Luego creo el vector con la frecuencias por término y las ordeno de mayor a menor
+vec_acq <- sort(rowSums(mmat_acq), decreasing = TRUE)
+```
+
+```{r}
+#Ahora creo el data frame propiamente dicho con términos y frecuencias
+df_acq <- data.frame(word = names(vec_acq), freq = vec_acq)
+df_acq[,3] <- "acq" #Agrega columna indicando la temática
+```
+
+- crude
+
+```{r}
+#Primero creo la matriz con los terminos
+mmat_crude <- as.matrix(mat[[2]]$mat)
+```
+
+```{r}
+#Luego creo el vector con la frecuencias por término y las ordeno de mayor a menor
+vec_crude <- sort(rowSums(mmat_crude), decreasing = TRUE)
+```
+
+```{r}
+#Ahora creo el data frame propiamente dicho con términos y frecuencias
+df_crude <- data.frame(word = names(vec_crude), freq = vec_crude)
+df_crude[,3] <- "crude" #Agrega columna indicando la temática
+```
+
+- earn
+
+```{r}
+#Primero creo la matriz con los terminos
+mmat_earn <- as.matrix(mat[[3]]$mat)
+```
+
+```{r}
+#Luego creo el vector con la frecuencias por término y las ordeno de mayor a menor
+vec_earn <- sort(rowSums(mmat_earn), decreasing = TRUE)
+```
+
+```{r}
+#Ahora creo el data frame propiamente dicho con términos y frecuencias
+df_earn <- data.frame(word = names(vec_earn), freq = vec_earn)
+df_earn[,3] <- "earn" #Agrega columna indicando la temática
+```
+
+- grain
+
+```{r}
+#Primero creo la matriz con los terminos
+mmat_grain <- as.matrix(mat[[4]]$mat)
+```
+
+```{r}
+#Luego creo el vector con la frecuencias por término y las ordeno de mayor a menor
+vec_grain <- sort(rowSums(mmat_grain), decreasing = TRUE)
+```
+
+```{r}
+#Ahora creo el data frame propiamente dicho con términos y frecuencias
+df_grain <- data.frame(word = names(vec_grain), freq = vec_grain)
+df_grain[,3] <- "grain" #Agrega columna indicando la temática
+```
+
+- interest
+
+```{r}
+#Primero creo la matriz con los terminos
+mmat_interest <- as.matrix(mat[[5]]$mat)
+```
+
+```{r}
+#Luego creo el vector con la frecuencias por término y las ordeno de mayor a menor
+vec_interest <- sort(rowSums(mmat_interest), decreasing = TRUE)
+```
+
+```{r}
+#Ahora creo el data frame propiamente dicho con términos y frecuencias
+df_interest <- data.frame(word = names(vec_interest), freq = vec_interest)
+df_interest[,3] <- "interest" #Agrega columna indicando la temática
+```
+
+- money - fx
+ 
+```{r}
+#Primero creo la matriz con los terminos
+mmat_moneyfx <- as.matrix(mat[[6]]$mat)
+```
+
+```{r}
+#Luego creo el vector con la frecuencias por término y las ordeno de mayor a menor
+vec_moneyfx <- sort(rowSums(mmat_moneyfx), decreasing = TRUE)
+```
+
+```{r}
+#Ahora creo el data frame propiamente dicho con términos y frecuencias
+df_moneyfx <- data.frame(word = names(vec_moneyfx), freq = vec_moneyfx)
+df_moneyfx[,3] <- "moneyfx" #Agrega columna indicando la temática
+```
+
+- ship
+
+```{r}
+#Primero creo la matriz con los terminos
+mmat_ship <- as.matrix(mat[[7]]$mat)
+```
+
+```{r}
+#Luego creo el vector con la frecuencias por término y las ordeno de mayor a menor
+vec_ship <- sort(rowSums(mmat_ship), decreasing = TRUE)
+```
+
+```{r}
+#Ahora creo el data frame propiamente dicho con términos y frecuencias
+df_ship <- data.frame(word = names(vec_ship), freq = vec_ship)
+df_ship[,3] <- "ship" #Agrega columna indicando la temática
+```
+
+- trade
+
+```{r}
+#Primero creo la matriz con los terminos
+mmat_trade <- as.matrix(mat[[8]]$mat)
+```
+
+```{r}
+#Luego creo el vector con la frecuencias por término y las ordeno de mayor a menor
+vec_trade <- sort(rowSums(mmat_trade), decreasing = TRUE)
+```
+
+```{r}
+#Ahora creo el data frame propiamente dicho con términos y frecuencias
+df_trade <- data.frame(word = names(vec_trade), freq = vec_trade)
+df_trade[,3] <- "trade" #Agrega columna indicando la temática
+```
+
+A continuación, concatenamos las matrices
+
+```{r}
+data <- rbind(df_acq, df_crude, df_earn, df_grain, df_interest, df_moneyfx, df_ship, df_trade)
+colnames(data) <- c("Palabra","Frecuencia","Tematica")
+```
+
+Ahora si, para construir el data frame apto para KNN, las columnas serán los términos, las filas los documentos y las celdas las frecuencias en que se repite la palabra.
+
+- acquire:
+
+```{r}
+#Primero trasponemos la matriz creada anteriormente
+a.mat_acq <- t(data.matrix(mat[[1]]$mat))
+```
+
+```{r}
+#Luego convierto en data frame
+a.df_acq <- as.data.frame(a.mat_acq, stringsAsFactors = FALSE)
+```
+
+```{r}
+#Además, agregaré una columna con la temática de cada documento
+tema <- rep(mat[[1]]$name, nrow(a.df_acq))
+a.df_acq <- cbind(a.df_acq, tema)
+```
+
+- crude
+
+```{r}
+#Primero trasponemos la matriz creada anteriormente
+a.mat_crude <- t(data.matrix(mat[[2]]$mat))
+```
+
+```{r}
+#Luego convierto en data frame
+a.df_crude <- as.data.frame(a.mat_crude, stringsAsFactors = FALSE)
+```
+
+```{r}
+#Además, agregaré una columna con la temática de cada documento
+tema <- rep(mat[[2]]$name, nrow(a.df_crude))
+a.df_crude <- cbind(a.df_crude, tema)
+```
+
+- earn
+
+```{r}
+#Primero trasponemos la matriz creada anteriormente
+a.mat_earn <- t(data.matrix(mat[[3]]$mat))
+```
+
+```{r}
+#Luego convierto en data frame
+a.df_earn <- as.data.frame(a.mat_earn, stringsAsFactors = FALSE)
+```
+
+```{r}
+#Además, agregaré una columna con la temática de cada documento
+tema <- rep(mat[[3]]$name, nrow(a.df_earn))
+a.df_earn <- cbind(a.df_earn, tema)
+```
+
+- grain
+
+```{r}
+#Primero trasponemos la matriz creada anteriormente
+a.mat_grain <- t(data.matrix(mat[[4]]$mat))
+```
+
+```{r}
+#Luego convierto en data frame
+a.df_grain <- as.data.frame(a.mat_grain, stringsAsFactors = FALSE)
+```
+
+```{r}
+#Además, agregaré una columna con la temática de cada documento
+tema <- rep(mat[[4]]$name, nrow(a.df_grain))
+a.df_grain <- cbind(a.df_grain, tema)
+```
+
+- interest
+
+```{r}
+#Primero trasponemos la matriz creada anteriormente
+a.mat_interest <- t(data.matrix(mat[[5]]$mat))
+```
+
+```{r}
+#Luego convierto en data frame
+a.df_interest <- as.data.frame(a.mat_interest, stringsAsFactors = FALSE)
+```
+
+```{r}
+#Además, agregaré una columna con la temática de cada documento
+tema <- rep(mat[[5]]$name, nrow(a.df_interest))
+a.df_interest <- cbind(a.df_interest, tema)
+```
+
+- money-fx
+
+```{r}
+#Primero trasponemos la matriz creada anteriormente
+a.mat_moneyfx <- t(data.matrix(mat[[6]]$mat))
+```
+
+```{r}
+#Luego convierto en data frame
+a.df_moneyfx <- as.data.frame(a.mat_moneyfx, stringsAsFactors = FALSE)
+```
+
+```{r}
+#Además, agregaré una columna con la temática de cada documento
+tema <- rep(mat[[6]]$name, nrow(a.df_moneyfx))
+a.df_moneyfx <- cbind(a.df_moneyfx, tema)
+```
+
+- ship
+
+```{r}
+#Primero trasponemos la matriz creada anteriormente
+a.mat_ship <- t(data.matrix(mat[[7]]$mat))
+```
+
+```{r}
+#Luego convierto en data frame
+a.df_ship <- as.data.frame(a.mat_ship, stringsAsFactors = FALSE)
+```
+
+```{r}
+#Además, agregaré una columna con la temática de cada documento
+tema <- rep(mat[[7]]$name, nrow(a.df_ship))
+a.df_ship <- cbind(a.df_ship, tema)
+```
+
+- trade
+
+```{r}
+#Primero trasponemos la matriz creada anteriormente
+a.mat_trade <- t(data.matrix(mat[[8]]$mat))
+```
+
+```{r}
+#Luego convierto en data frame
+a.df_trade <- as.data.frame(a.mat_trade, stringsAsFactors = FALSE)
+```
+
+```{r}
+#Además, agregaré una columna con la temática de cada documento
+tema <- rep(mat[[8]]$name, nrow(a.df_trade))
+a.df_trade <- cbind(a.df_trade, tema)
+```
+
+Ahora voy a concatenar los data frame, y aquellas dimensiones que no coincidan, se completará con 0
+
+```{r}
+pila <- rbind.fill(a.df_acq, a.df_crude, a.df_earn, a.df_grain, a.df_interest, a.df_moneyfx, a.df_ship, a.df_trade)
+pila[is.na(pila)] <- 0
+```
+
+Tenemos 149 columnas (palabras) y 5.485 filas (documentos)
+
+```{r}
+ncol(pila) #cantidad de columnas
+nrow(pila) #cantidad de filas
+```
+
+Ahora si podemos contruir el modelo de clasificaición (lo voy a hacer con la función knn del paquete class y train de caret)
+
+1-) Usando la función 'knn' del paquete 'class'.
+
+El set de datos de entrenamiento tiene el 70% de los datos (3.840), y el de prueba el restante 30% (1.645).
+
+Fijamos una semilla para poder repetir la práctica cuantas veces queramos y obtener el mismo resultado.
+
+```{r}
+set.seed(123)
+```
+
+- Creamos el set de datos de train (70%):
+
+```{r}
+train <- sample(nrow(pila), ceiling(nrow(pila)*0.7))
+```
+
+- Creamos el set de datos de test (30%):
+
+```{r}
+test <- (1:nrow(pila))[-train]
+```
+
+Para poder aplicar el algoritmo KNN es necesario separar las matriz de temáticas y la matriz de palabras y frecuencias
+
+```{r}
+tematica <- pila[, "tema"] #Matriz de temáticas
+```
+
+```{r}
+palabras <- pila[, !colnames(pila) %in% "tema"] #Matriz de palabras y frecuencias
+```
+
+Aplico el algortimo knn, recordando que el fin del ejercicio es poder prdecir el tema de los documentos de test
+
+```{r}
+class.knn <- knn(palabras[train,], palabras[test,], tematica[train])
+```
+
+2-) Usando la función 'train' del paquete 'caret'
+
+Creo la base de datos de entrenamiento con la variable dependiente (tema) y la explicativa (palabras)
+
+```{r}
+caret.train <- cbind(palabras[train, ], tematica[train])
+```
+
+Definimos valores para k
+
+```{r}
+kgrid <- expand.grid(k = (1:3))
+```
+
+Hago modelo usando train del paquete caret
+
+```{r}
+caret.knn <- train(`tematica[train]`~., data = caret.train, method = "knn", tuneGrid = kgrid)
+```
+
+Finalmente creo una matriz de confusión para ver el grado de acierto del modelo. Las columnas son las predicciones y las filas las observaciones reales
+
+- Con un table usando el resultado obtenido de class:
+
+```{r}
+mat.conf <- table("Real" = tematica[test], "Prediccion" = class.knn)
+```
+
+La accuracy del modelo es de:
+
+```{r}
+accuracy <- round((sum(diag(mat.conf))/sum(mat.conf))*100,2)
+print(paste("La precisión del modelo según 'knn' de 'class'es %", accuracy))
+```
+
+- Con el resultado obtenido del paquete caret:
+
+```{r}
+caret.test <- cbind(palabras[test, ], tematica[test])
+pred.caret <- predict(caret.knn, caret.test)
+confusionMatrix(pred.caret, as.factor(caret.test$`tematica[test]`))
+```
+
+Obtenemos casi los mismos resultados, con la diferencia de que haciendolo de la segunda manera, obtenemos otras métricas complementarias al accuracy.
+
+En conclusión, obtuve un modelo el cual predice con 95% de precisión (class = 95,14% y caret = 95,2% con k = 1) la temática de los documentos adicionales. Este resultado fue obtenido mediante un mismo algortimo, pero de dos paquetes diferentes, class (knn) y caret(train).
